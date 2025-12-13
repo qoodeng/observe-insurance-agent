@@ -1,0 +1,36 @@
+%%{init: {'flowchart': {'curve': 'basis'}}}%%
+flowchart TD
+    subgraph Global["⚡ Available Anytime"]
+        direction LR
+        X1["Emergency → 911"]
+        X2["Human → Callback"]
+        X3["Off-topic → Redirect"]
+        X4["FAQ → Knowledge Base"]
+    end
+
+    subgraph Flow["Conversation Flow"]
+        A["Greeting"] --> B["Get Phone"]
+        B --> C["Lookup"]
+        C --> D{"Found?"}
+        C -.->|API Fail| F
+        D -->|Yes| E["Confirm ID"]
+        D -->|No| F["Human Follow-up"]
+        E --> G{"Confirmed?"}
+        G -->|No| F
+        G -->|Yes| H["Get Status"]
+        H --> I{"Status"}
+        H -.->|API Fail| F
+        I -->|Approved| J["Approved"]
+        I -->|Pending| K["Pending"]
+        I -->|Docs Needed| L["Upload Instructions"]
+        J --> M{"More?"}
+        K --> M
+        L --> M
+        M -->|FAQ| N["Answer FAQ"]
+        N --> M
+        M -->|Done| R["Log Call"]
+        F --> R
+        R --> S["End"]
+    end
+
+    Flow -.-> Global

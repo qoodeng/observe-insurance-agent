@@ -1,0 +1,43 @@
+flowchart LR
+    subgraph Input["Caller"]
+        A[("👤")]
+    end
+
+    subgraph VAPI["VAPI Platform"]
+        TEL[Telephony]
+        STT[Deepgram STT]
+        LLM[GPT-4o]
+        TTS[TTS]
+    end
+
+    subgraph Flow["Voice Flow"]
+        F1[Greeting] --> F2[Authenticate]
+        F2 --> F3[Deliver Status]
+        F3 --> F4[Handle Questions]
+        F4 --> F5[Fallback / End]
+    end
+
+    subgraph Backend["FastAPI"]
+        API1["/lookup-caller-data"]
+        API2["/log-call-summary"]
+    end
+
+    subgraph Storage["Airtable"]
+        DB1[(Claims)]
+        DB2[(Interactions)]
+    end
+
+    subgraph Logs["Monitoring"]
+        L1[Railway Logs]
+        L2[VAPI Dashboard]
+    end
+
+    A <--> TEL
+    TEL --> STT --> LLM --> TTS --> TEL
+    LLM <--> Flow
+    F2 <--> API1
+    F5 --> API2
+    API1 --> DB1
+    API2 --> DB2
+    Backend -.-> L1
+    VAPI -.-> L2

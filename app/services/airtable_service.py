@@ -1,5 +1,5 @@
 import os
-from pyairtable import Api
+import httpx
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -23,11 +23,24 @@ class AirtableService:
     def __init__(self):
         if not AIRTABLE_API_KEY or not AIRTABLE_BASE_ID:
             raise ValueError("Airtable API Key and Base ID must be set in .env")
-        self.api = Api(AIRTABLE_API_KEY)
-        self.claims_table = self.api.table(AIRTABLE_BASE_ID, AIRTABLE_TABLE_CLAIMS)
-        self.interactions_table = self.api.table(AIRTABLE_BASE_ID, AIRTABLE_TABLE_INTERACTIONS)
+        
+        self.base_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}"
+        self.headers = {
+            "Authorization": f"Bearer {AIRTABLE_API_KEY}",
+            "Content-Type": "application/json"
+        }
+        # Persistent async client for connection pooling
+        self.client = httpx.AsyncClient(
+            base_url=self.base_url,
+            headers=self.headers,
+            timeout=10.0
+        )
 
-    def find_customer_by_phone(self, phone_number: str):
+    async def close(self):
+        """Close the HTTP client. Call on app shutdown."""
+        await self.client.aclose()
+
+    async def find_customer_by_phone(self, phone_number: str):
         """
         Finds a customer by their phone number.
         Returns the first matching claim or None.
@@ -45,30 +58,27 @@ class AirtableService:
         if not normalized_phone:
             return None
         
-        # Note: Your Airtable should store phone numbers in normalized format (digits only)
+        # Query Airtable with formula filter
         formula = f"{{Phone Number}} = '{normalized_phone}'"
-        matches = self.claims_table.all(formula=formula)
+        params = {"filterByFormula": formula}
         
-        if matches:
-            record = matches[0]["fields"]  # Return first match only
+        response = await self.client.get(f"/{AIRTABLE_TABLE_CLAIMS}", params=params)
+        response.raise_for_status()
+        
+        data = response.json()
+        records = data.get("records", [])
+        
+        if records:
+            record = records[0]["fields"]  # Return first match only
             return {
                 "firstName": record.get("First Name"),
                 "lastName": record.get("Last Name"),
                 "claimStatus": record.get("Claim Status")
             }
-            
-            # TODO: For production with multiple claims per customer, return:
-            # return {
-            #     "firstName": record.get("First Name"),
-            #     "lastName": record.get("Last Name"),
-            #     "claims": [{"claimId": m["fields"].get("Claim ID"), 
-            #                 "status": m["fields"].get("Claim Status")} for m in matches],
-            #     "claimCount": len(matches)
-            # }
         
         return None
 
-    def log_interaction(self, caller_name: str, summary: str, sentiment: str):
+    async def log_interaction(self, caller_name: str, summary: str, sentiment: str):
         """
         Logs the interaction details to Airtable.
         """
@@ -81,9 +91,17 @@ class AirtableService:
         if sentiment not in valid_sentiments:
             raise ValueError(f"sentiment must be one of {valid_sentiments}")
         
-        return self.interactions_table.create({
-            "Caller Name": caller_name,
-            "Call Summary": summary,
-            "Sentiment": sentiment
-        })
-
+        payload = {
+            "records": [{
+                "fields": {
+                    "Caller Name": caller_name,
+                    "Call Summary": summary,
+                    "Sentiment": sentiment
+                }
+            }]
+        }
+        
+        response = await self.client.post(f"/{AIRTABLE_TABLE_INTERACTIONS}", json=payload)
+        response.raise_for_status()
+        
+        return response.json()

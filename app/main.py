@@ -22,6 +22,13 @@ except ValueError as e:
     airtable_service = None
 
 
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Close async HTTP client on shutdown."""
+    if airtable_service:
+        await airtable_service.close()
+
+
 # --- Helper Functions ---
 
 def parse_request_body(body: dict, *field_names: str) -> tuple[dict, str | None]:
@@ -69,7 +76,7 @@ async def lookup_caller_data(request: Request):
         return format_response({"success": False, "error": "No phone number provided."}, tool_call_id)
     
     # Lookup
-    customer = airtable_service.find_customer_by_phone(phone_number)
+    customer = await airtable_service.find_customer_by_phone(phone_number)
     
     if customer:
         result = {"success": True, **customer}
@@ -89,7 +96,7 @@ async def log_call_summary(request: Request):
     args, tool_call_id = parse_request_body(body)
     
     try:
-        airtable_service.log_interaction(
+        await airtable_service.log_interaction(
             args.get("caller_name", ""),
             args.get("summary", ""),
             args.get("sentiment", "")

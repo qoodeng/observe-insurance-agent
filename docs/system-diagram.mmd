@@ -1,0 +1,37 @@
+flowchart LR
+    A[Caller] <--> B[VAPI Telephony]
+    
+    subgraph Core["Core System"]
+        direction LR
+        subgraph VAPI["VAPI Platform"]
+            B --> C[Deepgram STT]
+            C --> D[GPT-4o LLM]
+            D --> E[VAPI TTS]
+            E --> B
+        end
+
+        subgraph Backend["FastAPI - Railway"]
+            F["/lookup-caller-data"]
+            G["/log-call-summary"]
+        end
+        
+        D <-->|Tool Call| F
+        D <-->|Tool Call| G
+    end
+
+    subgraph Storage["Airtable"]
+        H[(Claims)]
+        I[(Interactions)]
+    end
+
+    subgraph Logs["Monitoring & Logs"]
+        L1[Railway Logs]
+        L2[VAPI Dashboard]
+    end
+
+    F -->|Read| H
+    G -->|Write| I
+    
+    F -.->|Errors| L1
+    G -.->|Errors| L1
+    B -.->|Call Logs & Analytics| L2
