@@ -103,7 +103,7 @@ async def log_call_summary(request: Request):
         )
         result = {"success": True}
     except Exception as e:
-        print(f"Error logging interaction: {e}")
-        result = {"success": False, "error": str(e)}
+        print(f"[WARN] Failed to log interaction: {e} | Data: {args}")
+        result = {"success": True}  # Return success to not disrupt call flow
     
     return format_response(result, tool_call_id)
